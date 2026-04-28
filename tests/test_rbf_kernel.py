@@ -56,6 +56,12 @@ def test_rbf_kernel_pairwise_helpers() -> None:
         (1.0, 0.0, 1.0),
         (1.0, 1.0, 0.0),
         (-1.0, 1.0, 1.0),
+        (np.nan, 1.0, 1.0),
+        (1.0, np.nan, 1.0),
+        (1.0, 1.0, np.nan),
+        (np.inf, 1.0, 1.0),
+        (1.0, np.inf, 1.0),
+        (1.0, 1.0, np.inf),
     ],
 )
 def test_rbf_kernel_requires_positive_hyperparameters(
@@ -71,6 +77,8 @@ def test_rbf_kernel_requires_positive_hyperparameters(
         np.array([0.0, 1.0]),
         np.array([[0.0], [1.0]]),
         np.array([[0.0, 1.0, 2.0]]),
+        np.array([[np.nan, 1.0]]),
+        np.array([[0.0, np.inf]]),
     ],
 )
 def test_rbf_kernel_rejects_invalid_point_shapes(bad_points: np.ndarray) -> None:

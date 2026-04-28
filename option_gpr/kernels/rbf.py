@@ -25,8 +25,8 @@ class RBFKernel:
             ("ell_x", self.ell_x),
             ("sigma_f", self.sigma_f),
         ):
-            if value <= 0:
-                raise ValueError(f"{name} must be positive, got {value!r}.")
+            if not np.isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be positive and finite, got {value!r}.")
 
     def tau(self, X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
         """Return pairwise time differences ``t_i - s_j``."""
@@ -63,4 +63,6 @@ class RBFKernel:
             raise ValueError(
                 f"{name} must be a 2D array with shape (n, 2), got {arr.shape}."
             )
+        if not np.all(np.isfinite(arr)):
+            raise ValueError(f"{name} must contain only finite values.")
         return arr

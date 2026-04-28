@@ -35,10 +35,19 @@ def test_payoffs_accept_scalar_log_price() -> None:
     assert put_payoff_log(np.log(80.0), strike=100.0) == pytest.approx(20.0)
 
 
-@pytest.mark.parametrize("bad_strike", [0.0, -1.0, np.inf])
+@pytest.mark.parametrize("bad_strike", [0.0, -1.0, np.inf, np.nan])
 def test_payoffs_require_positive_finite_strike(bad_strike: float) -> None:
     with pytest.raises(ValueError):
         call_payoff_log(np.array([0.0]), strike=bad_strike)
 
     with pytest.raises(ValueError):
         put_payoff_log(np.array([0.0]), strike=bad_strike)
+
+
+@pytest.mark.parametrize("bad_x", [np.nan, np.inf, -np.inf])
+def test_payoffs_require_finite_log_prices(bad_x: float) -> None:
+    with pytest.raises(ValueError):
+        call_payoff_log(np.array([bad_x]), strike=100.0)
+
+    with pytest.raises(ValueError):
+        put_payoff_log(np.array([bad_x]), strike=100.0)
