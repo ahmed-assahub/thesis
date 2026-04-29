@@ -80,6 +80,61 @@ def test_fit_builds_regularized_matrix_and_cholesky_factor() -> None:
     assert gp.cholesky_factor.shape == (5, 5)
 
 
+def test_predict_before_fit_raises_runtime_error() -> None:
+    gp = _make_gp()
+    X_star = np.array([[0.5, 4.0]])
+
+    with pytest.raises(RuntimeError):
+        gp.predict(X_star)
+
+
+def test_predict_returns_posterior_mean_shape() -> None:
+    gp = _make_gp(noise_int=1e-3, noise_bd=1e-3)
+    X_int, X_bd, y_bd = _sample_data()
+    X_star = np.array([[0.1, 3.95], [0.6, 4.2], [0.9, 4.4], [1.0, 4.0]])
+
+    mean = gp.fit(X_int, X_bd, y_bd).predict(X_star)
+
+    assert mean.shape == (4,)
+
+
+def test_predict_can_return_symmetric_posterior_covariance() -> None:
+    gp = _make_gp(noise_int=1e-3, noise_bd=1e-3)
+    X_int, X_bd, y_bd = _sample_data()
+    X_star = np.array([[0.1, 3.95], [0.6, 4.2], [0.9, 4.4], [1.0, 4.0]])
+
+    mean, cov = gp.fit(X_int, X_bd, y_bd).predict(X_star, return_cov=True)
+
+    assert mean.shape == (4,)
+    assert cov.shape == (4, 4)
+    np.testing.assert_allclose(cov, cov.T)
+
+
+def test_predict_can_return_posterior_variance() -> None:
+    gp = _make_gp(noise_int=1e-3, noise_bd=1e-3)
+    X_int, X_bd, y_bd = _sample_data()
+    X_star = np.array([[0.1, 3.95], [0.6, 4.2], [0.9, 4.4], [1.0, 4.0]])
+
+    mean_with_cov, cov = gp.fit(X_int, X_bd, y_bd).predict(X_star, return_cov=True)
+    mean_with_var, var = gp.predict(X_star, return_var=True)
+
+    assert mean_with_var.shape == (4,)
+    assert var.shape == (4,)
+    np.testing.assert_allclose(mean_with_var, mean_with_cov)
+    np.testing.assert_allclose(var, np.diag(cov))
+
+
+def test_predict_rejects_return_cov_and_return_var_together() -> None:
+    gp = _make_gp(noise_int=1e-3, noise_bd=1e-3)
+    X_int, X_bd, y_bd = _sample_data()
+    X_star = np.array([[0.5, 4.0]])
+
+    gp.fit(X_int, X_bd, y_bd)
+
+    with pytest.raises(ValueError):
+        gp.predict(X_star, return_cov=True, return_var=True)
+
+
 def test_fit_rejects_boundary_value_length_mismatch() -> None:
     gp = _make_gp()
     X_int, X_bd, _ = _sample_data()

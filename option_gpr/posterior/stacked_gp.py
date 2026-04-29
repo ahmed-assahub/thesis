@@ -107,6 +107,43 @@ class StackedOperatorGP:
         self.cholesky_factor = np.linalg.cholesky(self.K_reg)
         return self
 
+    def predict(
+        self,
+        X_star: ArrayLike,
+        return_cov: bool = False,
+        return_var: bool = False,
+    ) -> (
+        NDArray[np.float64]
+        | tuple[NDArray[np.float64], NDArray[np.float64]]
+    ):
+        """Return posterior mean, optionally with covariance or marginal variance."""
+
+        if return_cov and return_var:
+            raise ValueError("Only one of return_cov or return_var may be True.")
+        if (
+            self.X_int is None
+            or self.X_bd is None
+            or self.y_A is None
+            or self.cholesky_factor is None
+        ):
+            raise RuntimeError("fit must be called before predict.")
+
+        X_star_arr = self.kernel._validate_points(X_star, "X_star")
+        K_star_A = self.build_K_star_A(X_star_arr, self.X_int, self.X_bd)
+        lower_solve_y = np.linalg.solve(self.cholesky_factor, self.y_A)
+        alpha = np.linalg.solve(self.cholesky_factor.T, lower_solve_y)
+        mean = K_star_A @ alpha
+
+        if not return_cov and not return_var:
+            return mean
+
+        V = np.linalg.solve(self.cholesky_factor, K_star_A.T)
+        cov = self.kernel.K(X_star_arr, X_star_arr) - V.T @ V
+        if return_cov:
+            return mean, cov
+
+        return mean, np.diag(cov)
+
 
 def _validate_nonnegative(name: str, value: float) -> None:
     if not np.isfinite(value) or value < 0:
