@@ -57,6 +57,16 @@ def test_build_K_star_A_shape() -> None:
     assert K_star_A.shape == (4, 5)
 
 
+def test_build_L_star_A_shape() -> None:
+    gp = _make_gp()
+    X_int, X_bd, _ = _sample_data()
+    X_star = np.array([[0.1, 3.95], [0.6, 4.2], [0.9, 4.4], [1.0, 4.0]])
+
+    L_star_A = gp.build_L_star_A(X_star, X_int, X_bd)
+
+    assert L_star_A.shape == (4, 5)
+
+
 def test_build_noise_diag_uses_separate_squared_noise_levels() -> None:
     gp = _make_gp(noise_int=0.1, noise_bd=0.2)
 
@@ -76,6 +86,7 @@ def test_fit_builds_regularized_matrix_and_cholesky_factor() -> None:
     assert gp.K_AA is not None
     assert gp.K_reg is not None
     assert gp.cholesky_factor is not None
+    assert gp.alpha is not None
     assert gp.K_reg.shape == (5, 5)
     assert gp.cholesky_factor.shape == (5, 5)
 
@@ -86,6 +97,14 @@ def test_predict_before_fit_raises_runtime_error() -> None:
 
     with pytest.raises(RuntimeError):
         gp.predict(X_star)
+
+
+def test_predict_operator_before_fit_raises_runtime_error() -> None:
+    gp = _make_gp()
+    X_star = np.array([[0.5, 4.0]])
+
+    with pytest.raises(RuntimeError):
+        gp.predict_operator(X_star)
 
 
 def test_predict_returns_posterior_mean_shape() -> None:
@@ -133,6 +152,21 @@ def test_predict_rejects_return_cov_and_return_var_together() -> None:
 
     with pytest.raises(ValueError):
         gp.predict(X_star, return_cov=True, return_var=True)
+
+
+def test_predict_operator_returns_finite_shape_and_matches_manual_blocks() -> None:
+    gp = _make_gp(noise_int=1e-3, noise_bd=1e-3)
+    X_int, X_bd, y_bd = _sample_data()
+    X_star = np.array([[0.1, 3.95], [0.6, 4.2], [0.9, 4.4], [1.0, 4.0]])
+
+    gp.fit(X_int, X_bd, y_bd)
+    operator_mean = gp.predict_operator(X_star)
+    L_star_A = gp.build_L_star_A(X_star, X_int, X_bd)
+
+    assert gp.alpha is not None
+    assert operator_mean.shape == (4,)
+    assert np.all(np.isfinite(operator_mean))
+    np.testing.assert_allclose(operator_mean, L_star_A @ gp.alpha)
 
 
 def test_fit_rejects_boundary_value_length_mismatch() -> None:

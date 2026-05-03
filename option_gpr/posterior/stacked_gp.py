@@ -25,6 +25,7 @@ class StackedOperatorGP:
     K_AA: NDArray[np.float64] | None = field(default=None, init=False)
     K_reg: NDArray[np.float64] | None = field(default=None, init=False)
     cholesky_factor: NDArray[np.float64] | None = field(default=None, init=False)
+    alpha: NDArray[np.float64] | None = field(default=None, init=False)
 
     def __post_init__(self) -> None:
         _validate_nonnegative("noise_int", self.noise_int)
@@ -72,6 +73,21 @@ class StackedOperatorGP:
             ]
         )
 
+    def build_L_star_A(
+        self, X_star: ArrayLike, X_int: ArrayLike, X_bd: ArrayLike
+    ) -> NDArray[np.float64]:
+        """Return operator-applied cross-covariance for ``L m(X_star)``."""
+
+        X_star_arr = self.kernel._validate_points(X_star, "X_star")
+        X_int_arr = self.kernel._validate_points(X_int, "X_int")
+        X_bd_arr = self.kernel._validate_points(X_bd, "X_bd")
+        return np.hstack(
+            [
+                self.operator.LkLp(X_star_arr, X_int_arr),
+                self.operator.Lk(X_star_arr, X_bd_arr),
+            ]
+        )
+
     def build_noise_diag(self, n_int: int, n_bd: int) -> NDArray[np.float64]:
         """Return the diagonal of the stacked observation noise matrix."""
 
@@ -105,6 +121,8 @@ class StackedOperatorGP:
         noise_diag = self.build_noise_diag(X_int_arr.shape[0], X_bd_arr.shape[0])
         self.K_reg = self.K_AA + np.diag(noise_diag + self.jitter)
         self.cholesky_factor = np.linalg.cholesky(self.K_reg)
+        lower_solve_y = np.linalg.solve(self.cholesky_factor, self.y_A)
+        self.alpha = np.linalg.solve(self.cholesky_factor.T, lower_solve_y)
         return self
 
     def predict(
@@ -125,14 +143,13 @@ class StackedOperatorGP:
             or self.X_bd is None
             or self.y_A is None
             or self.cholesky_factor is None
+            or self.alpha is None
         ):
             raise RuntimeError("fit must be called before predict.")
 
         X_star_arr = self.kernel._validate_points(X_star, "X_star")
         K_star_A = self.build_K_star_A(X_star_arr, self.X_int, self.X_bd)
-        lower_solve_y = np.linalg.solve(self.cholesky_factor, self.y_A)
-        alpha = np.linalg.solve(self.cholesky_factor.T, lower_solve_y)
-        mean = K_star_A @ alpha
+        mean = K_star_A @ self.alpha
 
         if not return_cov and not return_var:
             return mean
@@ -143,6 +160,16 @@ class StackedOperatorGP:
             return mean, cov
 
         return mean, np.diag(cov)
+
+    def predict_operator(self, X_star: ArrayLike) -> NDArray[np.float64]:
+        """Return the posterior mean after applying the operator to ``X_star``."""
+
+        if self.X_int is None or self.X_bd is None or self.alpha is None:
+            raise RuntimeError("fit must be called before predict_operator.")
+
+        X_star_arr = self.kernel._validate_points(X_star, "X_star")
+        L_star_A = self.build_L_star_A(X_star_arr, self.X_int, self.X_bd)
+        return L_star_A @ self.alpha
 
 
 def _validate_nonnegative(name: str, value: float) -> None:
