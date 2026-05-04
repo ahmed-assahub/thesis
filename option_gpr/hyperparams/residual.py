@@ -45,10 +45,11 @@ def residual_tuning_objective(
     noise_bd: float,
     jitter: float,
     penalty: float = 1e30,
+    fixed_sigma_f: float | None = None,
 ) -> float:
     """Return PDE-residual plus boundary-residual tuning error."""
 
-    parsed = _parse_theta_log(theta_log)
+    parsed = _parse_theta_log(theta_log, fixed_sigma_f=fixed_sigma_f)
     if parsed is None:
         return penalty
     sigma_f, ell_t, ell_x = parsed
@@ -98,14 +99,18 @@ def tune_rbf_kernel_residual(
     xatol: float = 1e-3,
     fatol: float = 1e-6,
     penalty: float = 1e30,
+    fixed_sigma_f: float | None = None,
 ) -> ResidualTuningResult:
     """Tune RBF hyperparameters by residual minimization in log-space."""
 
-    initial = np.array([initial_sigma_f, initial_ell_t, initial_ell_x], dtype=float)
-    if initial.shape != (3,) or not np.all(np.isfinite(initial)) or np.any(initial <= 0):
+    if fixed_sigma_f is None:
+        initial = np.array([initial_sigma_f, initial_ell_t, initial_ell_x], dtype=float)
+    else:
+        _validate_positive_finite("fixed_sigma_f", fixed_sigma_f)
+        initial = np.array([initial_ell_t, initial_ell_x], dtype=float)
+    if initial.ndim != 1 or not np.all(np.isfinite(initial)) or np.any(initial <= 0):
         raise ValueError(
-            "initial_sigma_f, initial_ell_t, and initial_ell_x must be "
-            "positive and finite."
+            "initial kernel hyperparameters must be positive and finite."
         )
 
     theta0 = np.log(initial)
@@ -119,6 +124,7 @@ def tune_rbf_kernel_residual(
         noise_bd=noise_bd,
         jitter=jitter,
         penalty=penalty,
+        fixed_sigma_f=fixed_sigma_f,
     )
     result = minimize(
         objective,
@@ -126,7 +132,9 @@ def tune_rbf_kernel_residual(
         method="Nelder-Mead",
         options={"maxiter": maxiter, "xatol": xatol, "fatol": fatol},
     )
-    sigma_f, ell_t, ell_x = _exp_theta_or_penalty_values(result.x)
+    sigma_f, ell_t, ell_x = _exp_theta_or_penalty_values(
+        result.x, fixed_sigma_f=fixed_sigma_f
+    )
     objective_value = float(result.fun) if np.isfinite(result.fun) else float(penalty)
     return ResidualTuningResult(
         sigma_f=sigma_f,
@@ -141,10 +149,23 @@ def tune_rbf_kernel_residual(
     )
 
 
-def _parse_theta_log(theta_log: ArrayLike) -> tuple[float, float, float] | None:
+def _parse_theta_log(
+    theta_log: ArrayLike, *, fixed_sigma_f: float | None
+) -> tuple[float, float, float] | None:
     theta = np.asarray(theta_log, dtype=float)
-    if theta.shape != (3,) or not np.all(np.isfinite(theta)):
+    expected_shape = (3,) if fixed_sigma_f is None else (2,)
+    if theta.shape != expected_shape or not np.all(np.isfinite(theta)):
         return None
+    if fixed_sigma_f is not None:
+        if not np.isfinite(fixed_sigma_f) or fixed_sigma_f <= 0:
+            return None
+        with np.errstate(over="ignore", invalid="ignore"):
+            ell_t, ell_x = np.exp(theta)
+        values = np.array([fixed_sigma_f, ell_t, ell_x], dtype=float)
+        if not np.all(np.isfinite(values)) or np.any(values <= 0):
+            return None
+        return float(fixed_sigma_f), float(ell_t), float(ell_x)
+
     with np.errstate(over="ignore", invalid="ignore"):
         sigma_f, ell_t, ell_x = np.exp(theta)
     values = np.array([sigma_f, ell_t, ell_x], dtype=float)
@@ -153,8 +174,15 @@ def _parse_theta_log(theta_log: ArrayLike) -> tuple[float, float, float] | None:
     return float(sigma_f), float(ell_t), float(ell_x)
 
 
-def _exp_theta_or_penalty_values(theta_log: ArrayLike) -> tuple[float, float, float]:
-    parsed = _parse_theta_log(theta_log)
+def _exp_theta_or_penalty_values(
+    theta_log: ArrayLike, *, fixed_sigma_f: float | None
+) -> tuple[float, float, float]:
+    parsed = _parse_theta_log(theta_log, fixed_sigma_f=fixed_sigma_f)
     if parsed is None:
         return float("nan"), float("nan"), float("nan")
     return parsed
+
+
+def _validate_positive_finite(name: str, value: float) -> None:
+    if not np.isfinite(value) or value <= 0:
+        raise ValueError(f"{name} must be positive and finite, got {value!r}.")

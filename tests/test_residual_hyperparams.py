@@ -96,6 +96,43 @@ def test_residual_tuning_objective_returns_penalty_for_nonfinite_theta() -> None
     assert value == penalty
 
 
+def test_residual_tuning_objective_supports_fixed_sigma_f() -> None:
+    value = residual_tuning_objective(
+        np.log(np.array([0.8, 1.2])),
+        model=_model(),
+        operator_factory=_operator_factory,
+        train_grid=_grid(seed=1),
+        tune_grid=_grid(seed=2),
+        noise_int=1e-3,
+        noise_bd=1e-3,
+        jitter=1e-8,
+        fixed_sigma_f=1.0,
+    )
+
+    assert np.isscalar(value)
+    assert np.isfinite(value)
+    assert value >= 0.0
+
+
+def test_residual_tuning_objective_fixed_sigma_f_rejects_three_parameter_theta() -> None:
+    penalty = 12345.0
+
+    value = residual_tuning_objective(
+        np.log(np.array([1.0, 0.8, 1.2])),
+        model=_model(),
+        operator_factory=_operator_factory,
+        train_grid=_grid(seed=1),
+        tune_grid=_grid(seed=2),
+        noise_int=1e-3,
+        noise_bd=1e-3,
+        jitter=1e-8,
+        fixed_sigma_f=1.0,
+        penalty=penalty,
+    )
+
+    assert value == penalty
+
+
 def test_tune_rbf_kernel_residual_tiny_problem_returns_finite_parameters() -> None:
     result = tune_rbf_kernel_residual(
         model=_model(),
@@ -117,3 +154,27 @@ def test_tune_rbf_kernel_residual_tiny_problem_returns_finite_parameters() -> No
     assert np.all(np.isfinite(result.theta_log))
     assert np.isfinite(result.objective_value)
     assert result.nfev > 0
+
+
+def test_tune_rbf_kernel_residual_fixed_sigma_f_optimizes_only_lengthscales() -> None:
+    result = tune_rbf_kernel_residual(
+        model=_model(),
+        operator_factory=_operator_factory,
+        train_grid=_grid(seed=1),
+        tune_grid=_grid(seed=2),
+        initial_sigma_f=100.0,
+        initial_ell_t=0.8,
+        initial_ell_x=1.2,
+        noise_int=1e-3,
+        noise_bd=1e-3,
+        jitter=1e-8,
+        maxiter=2,
+        fixed_sigma_f=1.0,
+    )
+
+    assert result.sigma_f == 1.0
+    assert result.ell_t > 0.0
+    assert result.ell_x > 0.0
+    assert result.theta_log.shape == (2,)
+    assert np.all(np.isfinite(result.theta_log))
+    assert np.isfinite(result.objective_value)
