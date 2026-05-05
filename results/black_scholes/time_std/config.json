@@ -1,0 +1,60 @@
+{
+  "r": 0.05,
+  "sigma": 0.25,
+  "strike": 100.0,
+  "maturities": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0
+  ],
+  "S_min": 1.0,
+  "S_max": 200.0,
+  "validation_S_min": 50.0,
+  "validation_S_max": 150.0,
+  "validation_S_step": 2.0,
+  "m_values": [
+    200,
+    400,
+    600,
+    800
+  ],
+  "initial_sigma_f": 100.0,
+  "fixed_sigma_f": 1.0,
+  "initial_ell_t": 0.8,
+  "initial_ell_x": 1.2,
+  "noise_int": 0.01,
+  "noise_bd": 0.01,
+  "jitter": 0.0,
+  "maxiter": 300,
+  "xatol": 0.001,
+  "fatol": 0.001,
+  "base_seed": 20260511,
+  "output_dir": "results/black_scholes/time_std",
+  "schema_version": "1",
+  "created_at_utc": "2026-05-04T03:39:36.549387+00:00",
+  "grid_design": "nested_random_price_fixed_ratio",
+  "grid_design_note": "For each maturity, largest train/tune pools are generated once. Interior, terminal, lower, and upper blocks are sampled sequentially from one random generator, matching the nested collocation experiment.",
+  "collocation_pairs": [
+    {
+      "m": 200,
+      "d": 200
+    },
+    {
+      "m": 400,
+      "d": 400
+    },
+    {
+      "m": 600,
+      "d": 600
+    },
+    {
+      "m": 800,
+      "d": 800
+    }
+  ],
+  "seed_policy": "train_seed = base_seed + 100 * maturity_index + 1; tune_seed = base_seed + 100 * maturity_index + 2",
+  "total_time_definition": "optimization_time_sec + final_fit_time_sec + pricing_time_sec + posterior_std_time_sec + benchmark_time_sec"
+}

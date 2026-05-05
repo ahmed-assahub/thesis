@@ -1,0 +1,96 @@
+{
+  "r": 0.05,
+  "sigma": 0.25,
+  "strike": 100.0,
+  "maturities": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0
+  ],
+  "S_min": 1.0,
+  "S_max": 200.0,
+  "validation_S_min": 50.0,
+  "validation_S_max": 150.0,
+  "validation_S_step": 2.0,
+  "n_int_values": [
+    200,
+    400,
+    600,
+    800
+  ],
+  "n_bd_ratios": [
+    0.6,
+    0.75,
+    1.0
+  ],
+  "initial_sigma_f": 100.0,
+  "fixed_sigma_f": 1.0,
+  "initial_ell_t": 0.8,
+  "initial_ell_x": 1.2,
+  "noise_int": 0.01,
+  "noise_bd": 0.01,
+  "jitter": 0.0,
+  "maxiter": 300,
+  "xatol": 1e-06,
+  "fatol": 1e-06,
+  "base_seed": 20260511,
+  "output_dir": "results/black_scholes/collocation_sensitivity_nested",
+  "schema_version": "1",
+  "created_at_utc": "2026-05-04T03:18:03.177076+00:00",
+  "grid_design": "nested_random_price",
+  "grid_design_note": "For each maturity and boundary ratio, largest train/tune pools are generated once. Smaller grids are prefixes of the corresponding interior, terminal, lower, and upper blocks.",
+  "collocation_pairs": [
+    {
+      "n_int": 200,
+      "n_bd": 120
+    },
+    {
+      "n_int": 400,
+      "n_bd": 240
+    },
+    {
+      "n_int": 600,
+      "n_bd": 360
+    },
+    {
+      "n_int": 800,
+      "n_bd": 480
+    },
+    {
+      "n_int": 200,
+      "n_bd": 150
+    },
+    {
+      "n_int": 400,
+      "n_bd": 300
+    },
+    {
+      "n_int": 600,
+      "n_bd": 450
+    },
+    {
+      "n_int": 800,
+      "n_bd": 600
+    },
+    {
+      "n_int": 200,
+      "n_bd": 200
+    },
+    {
+      "n_int": 400,
+      "n_bd": 400
+    },
+    {
+      "n_int": 600,
+      "n_bd": 600
+    },
+    {
+      "n_int": 800,
+      "n_bd": 800
+    }
+  ],
+  "seed_policy": "train_seed = base_seed + 100 * maturity_index + 1; tune_seed = base_seed + 100 * maturity_index + 2"
+}
