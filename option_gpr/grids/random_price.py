@@ -1,4 +1,4 @@
-"""Random grids sampled uniformly in price and returned in log-price coordinates."""
+"""Random grids returned in log-price coordinates."""
 
 from __future__ import annotations
 
@@ -33,6 +33,29 @@ def make_random_price_interior_points(
     return _points_from_time_and_price(t, S)
 
 
+def make_random_log_price_interior_points(
+    n: int,
+    t_min: float,
+    t_max: float,
+    S_min: float,
+    S_max: float,
+    maturity: float,
+    *,
+    seed: int | None = None,
+    rng: np.random.Generator | None = None,
+) -> NDArray[np.float64]:
+    """Sample interior points with uniform time and uniform log-price."""
+
+    _validate_count("n", n)
+    _validate_maturity(maturity)
+    _validate_time_interval(t_min, t_max, maturity)
+    _validate_price_interval(S_min, S_max)
+    generator = _resolve_rng(seed=seed, rng=rng)
+    t = generator.uniform(t_min, t_max, size=n)
+    x = generator.uniform(np.log(S_min), np.log(S_max), size=n)
+    return _points_from_time_and_log_price(t, x)
+
+
 def make_random_price_terminal_boundary(
     n: int,
     maturity: float,
@@ -50,6 +73,25 @@ def make_random_price_terminal_boundary(
     generator = _resolve_rng(seed=seed, rng=rng)
     S = generator.uniform(S_min, S_max, size=n)
     return _points_from_time_and_price(np.full(n, maturity), S)
+
+
+def make_random_log_price_terminal_boundary(
+    n: int,
+    maturity: float,
+    S_min: float,
+    S_max: float,
+    *,
+    seed: int | None = None,
+    rng: np.random.Generator | None = None,
+) -> NDArray[np.float64]:
+    """Sample terminal boundary points with uniform log-price."""
+
+    _validate_count("n", n)
+    _validate_maturity(maturity)
+    _validate_price_interval(S_min, S_max)
+    generator = _resolve_rng(seed=seed, rng=rng)
+    x = generator.uniform(np.log(S_min), np.log(S_max), size=n)
+    return _points_from_time_and_log_price(np.full(n, maturity), x)
 
 
 def make_random_price_lower_boundary(
@@ -72,6 +114,26 @@ def make_random_price_lower_boundary(
     return _points_from_time_and_price(t, np.full(n, S_min))
 
 
+def make_random_log_price_lower_boundary(
+    n: int,
+    t_min: float,
+    maturity: float,
+    S_min: float,
+    *,
+    seed: int | None = None,
+    rng: np.random.Generator | None = None,
+) -> NDArray[np.float64]:
+    """Sample lower spatial boundary points at ``log(S_min)``."""
+
+    _validate_count("n", n)
+    _validate_maturity(maturity)
+    _validate_boundary_time_min(t_min, maturity)
+    _validate_positive_price("S_min", S_min)
+    generator = _resolve_rng(seed=seed, rng=rng)
+    t = generator.uniform(t_min, maturity, size=n)
+    return _points_from_time_and_log_price(t, np.full(n, np.log(S_min)))
+
+
 def make_random_price_upper_boundary(
     n: int,
     t_min: float,
@@ -90,6 +152,26 @@ def make_random_price_upper_boundary(
     generator = _resolve_rng(seed=seed, rng=rng)
     t = generator.uniform(t_min, maturity, size=n)
     return _points_from_time_and_price(t, np.full(n, S_max))
+
+
+def make_random_log_price_upper_boundary(
+    n: int,
+    t_min: float,
+    maturity: float,
+    S_max: float,
+    *,
+    seed: int | None = None,
+    rng: np.random.Generator | None = None,
+) -> NDArray[np.float64]:
+    """Sample upper spatial boundary points at ``log(S_max)``."""
+
+    _validate_count("n", n)
+    _validate_maturity(maturity)
+    _validate_boundary_time_min(t_min, maturity)
+    _validate_positive_price("S_max", S_max)
+    generator = _resolve_rng(seed=seed, rng=rng)
+    t = generator.uniform(t_min, maturity, size=n)
+    return _points_from_time_and_log_price(t, np.full(n, np.log(S_max)))
 
 
 def combine_boundary_points(
@@ -166,6 +248,65 @@ def make_random_price_grid(
     return GridSet(X_int=X_int, X_bd=X_bd, y_bd=y_bd)
 
 
+def make_random_log_price_grid(
+    n_int: int,
+    n_terminal: int,
+    n_lower: int,
+    n_upper: int,
+    t_min: float,
+    t_max: float,
+    maturity: float,
+    S_min: float,
+    S_max: float,
+    boundary_value_fn: Callable[[NDArray[np.float64]], NDArray[np.float64]],
+    *,
+    seed: int | None = None,
+    rng: np.random.Generator | None = None,
+) -> GridSet:
+    """Return a random log-price-sampled grid with terminal and spatial boundaries."""
+
+    generator = _resolve_rng(seed=seed, rng=rng)
+    X_int = make_random_log_price_interior_points(
+        n_int,
+        t_min,
+        t_max,
+        S_min,
+        S_max,
+        maturity,
+        rng=generator,
+    )
+    X_terminal = make_random_log_price_terminal_boundary(
+        n_terminal,
+        maturity,
+        S_min,
+        S_max,
+        rng=generator,
+    )
+    X_lower = make_random_log_price_lower_boundary(
+        n_lower,
+        t_min,
+        maturity,
+        S_min,
+        rng=generator,
+    )
+    X_upper = make_random_log_price_upper_boundary(
+        n_upper,
+        t_min,
+        maturity,
+        S_max,
+        rng=generator,
+    )
+    X_bd = combine_boundary_points(X_terminal, X_lower, X_upper)
+    y_bd = np.asarray(boundary_value_fn(X_bd), dtype=float)
+    if y_bd.ndim != 1 or y_bd.shape[0] != X_bd.shape[0]:
+        raise ValueError(
+            "boundary_value_fn must return a 1D array with length X_bd.shape[0], "
+            f"got shape {y_bd.shape}."
+        )
+    _validate_finite_array("y_bd", y_bd)
+    return GridSet(X_int=X_int, X_bd=X_bd, y_bd=y_bd)
+
+
 def _resolve_rng(
     *,
     seed: int | None,
@@ -181,7 +322,13 @@ def _resolve_rng(
 def _points_from_time_and_price(
     t: NDArray[np.float64], S: NDArray[np.float64]
 ) -> NDArray[np.float64]:
-    points = np.column_stack([t, np.log(S)])
+    return _points_from_time_and_log_price(t, np.log(S))
+
+
+def _points_from_time_and_log_price(
+    t: NDArray[np.float64], x: NDArray[np.float64]
+) -> NDArray[np.float64]:
+    points = np.column_stack([t, x])
     _validate_finite_array("points", points)
     return points
 

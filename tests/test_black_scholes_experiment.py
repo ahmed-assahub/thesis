@@ -5,6 +5,7 @@ import numpy as np
 
 from experiments.black_scholes_collocation_sensitivity import (
     ExperimentConfig,
+    make_grid,
     run_experiment,
     run_single_case,
     split_boundary_count,
@@ -12,7 +13,9 @@ from experiments.black_scholes_collocation_sensitivity import (
 )
 
 
-def _tiny_config(output_dir: Path) -> ExperimentConfig:
+def _tiny_config(
+    output_dir: Path, grid_sampling: str = "price_uniform"
+) -> ExperimentConfig:
     return ExperimentConfig(
         maturities=(0.5,),
         S_min=20.0,
@@ -24,6 +27,7 @@ def _tiny_config(output_dir: Path) -> ExperimentConfig:
         n_bd_ratios=(1.125,),
         maxiter=2,
         output_dir=output_dir,
+        grid_sampling=grid_sampling,
     )
 
 
@@ -109,3 +113,16 @@ def test_write_outputs_creates_expected_files(tmp_path: Path) -> None:
     assert hyper_rows[0]["sigma_f"] == "1.0"
     assert hyper_rows[0]["fixed_sigma_f"] == "1.0"
     assert hyper_rows[0]["log_sigma_f"] == ""
+
+
+def test_log_price_uniform_make_grid_uses_log_bounds(tmp_path: Path) -> None:
+    config = _tiny_config(tmp_path, grid_sampling="log_price_uniform")
+
+    grid = make_grid(config, maturity=0.5, n_int=8, n_bd=9, seed=123)
+
+    lower = np.log(config.S_min)
+    upper = np.log(config.S_max)
+    assert np.all(grid.X_int[:, 1] >= lower)
+    assert np.all(grid.X_int[:, 1] <= upper)
+    assert np.all(grid.X_bd[:, 1] >= lower)
+    assert np.all(grid.X_bd[:, 1] <= upper)

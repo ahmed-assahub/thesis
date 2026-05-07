@@ -5,12 +5,15 @@ import numpy as np
 
 from experiments.black_scholes_seed_stability import (
     ExperimentConfig,
+    make_grid,
     run_experiment,
     write_outputs,
 )
 
 
-def _tiny_config(output_dir: Path) -> ExperimentConfig:
+def _tiny_config(
+    output_dir: Path, grid_sampling: str = "price_uniform"
+) -> ExperimentConfig:
     return ExperimentConfig(
         maturities=(0.5,),
         S_min=20.0,
@@ -24,6 +27,7 @@ def _tiny_config(output_dir: Path) -> ExperimentConfig:
         maxiter=2,
         output_dir=output_dir,
         show_progress=False,
+        grid_sampling=grid_sampling,
     )
 
 
@@ -125,3 +129,16 @@ def test_write_outputs_creates_expected_files(tmp_path: Path) -> None:
         {row["metric"] for row in summary_rows}
     )
     assert {"metric", "mean", "std", "min", "max"} == set(summary_rows[0])
+
+
+def test_log_price_uniform_make_grid_uses_log_bounds(tmp_path: Path) -> None:
+    config = _tiny_config(tmp_path, grid_sampling="log_price_uniform")
+
+    grid = make_grid(config, maturity=0.5, seed=123)
+
+    lower = np.log(config.S_min)
+    upper = np.log(config.S_max)
+    assert np.all(grid.X_int[:, 1] >= lower)
+    assert np.all(grid.X_int[:, 1] <= upper)
+    assert np.all(grid.X_bd[:, 1] >= lower)
+    assert np.all(grid.X_bd[:, 1] <= upper)

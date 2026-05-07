@@ -1,0 +1,2 @@
+n_paths,n_maturities,n_validation_spots,mae,max_abs_error,mre_itm,mean_mc_standard_error,max_mc_standard_error,mc_time_sec,series_benchmark_time_sec
+500,6,76,1.7183522306159518,13.907101603287927,0.03684662353151978,2.0642644906954914,6.4166274200201805,0.01808841701131314,0.23307704110629857

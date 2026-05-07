@@ -1,0 +1,61 @@
+{
+  "r": 0.05,
+  "sigma": 0.25,
+  "strike": 100.0,
+  "jump_intensity": 1.0,
+  "jump_mean": -0.1,
+  "jump_std": 0.2,
+  "maturities": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    3.0
+  ],
+  "S_min": 1.0,
+  "S_max": 350.0,
+  "validation_S_min": 50.0,
+  "validation_S_max": 200.0,
+  "validation_S_step": 2,
+  "m_values": [
+    400,
+    600,
+    800
+  ],
+  "mc_path_values": [
+    500
+  ],
+  "initial_sigma_f": 100.0,
+  "fixed_sigma_f": 1.0,
+  "initial_ell_t": 0.8,
+  "initial_ell_x": 1.2,
+  "noise_int": 0.01,
+  "noise_bd": 0.01,
+  "jitter": 0.0,
+  "maxiter": 300,
+  "xatol": 0.001,
+  "fatol": 0.001,
+  "tail_tol": 1e-12,
+  "max_terms": 600,
+  "base_seed": 20260605,
+  "output_dir": "results/merton_jump_diffusion/grid_mc_comparisonlog",
+  "grid_sampling": "log_price_uniform",
+  "schema_version": "1",
+  "created_at_utc": "2026-05-07T22:48:36.901894+00:00",
+  "grid_design": "nested_random_price_fixed_ratio",
+  "grid_design_note": "For each maturity, largest train/tune pools are generated once. Requested GPR grid sizes are prefixes of the same interior, terminal, lower, and upper blocks.",
+  "grid_sampling_note": "'price_uniform' samples uniformly in S and returns x = log(S). 'log_price_uniform' samples uniformly directly in x = log(S).",
+  "gpr_seed_policy": "train_seed = base_seed + 100 * maturity_index + 1; tune_seed = base_seed + 100 * maturity_index + 2",
+  "mc_seed_policy": "mc_seed = base_seed + 10000 + 100 * path_index + maturity_index",
+  "error_reference_note": "All GPR and Monte Carlo errors are computed against the Merton semi-analytical series benchmark, never against each other.",
+  "runtime_definitions": {
+    "optimization_time_sec": "residual hyperparameter tuning only",
+    "final_fit_time_sec": "final GP fit after tuning",
+    "pricing_time_sec": "posterior mean prediction on validation set",
+    "posterior_std_time_sec": "posterior variance/std prediction on validation set",
+    "total_gpr_time_sec": "optimization_time_sec + final_fit_time_sec + pricing_time_sec + posterior_std_time_sec",
+    "mc_time_sec": "Monte Carlo prices and standard errors on validation set",
+    "series_benchmark_time_sec": "Merton series reference evaluation time, stored separately"
+  }
+}

@@ -22,6 +22,10 @@ from option_gpr.benchmarks import black_scholes_call_price_log
 from option_gpr.grids import (
     GridSet,
     combine_boundary_points,
+    make_random_log_price_interior_points,
+    make_random_log_price_lower_boundary,
+    make_random_log_price_terminal_boundary,
+    make_random_log_price_upper_boundary,
     make_random_price_interior_points,
     make_random_price_lower_boundary,
     make_random_price_terminal_boundary,
@@ -62,6 +66,7 @@ class ExperimentConfig:
     fatol: float = 1e-3
     base_seed: int = 20260511
     output_dir: Path = Path("results/black_scholes/time_std")
+    grid_sampling: str = "price_uniform"
     schema_version: str = "1"
 
 
@@ -106,9 +111,10 @@ def make_nested_grid_pool(
     """Generate largest nested train or tune pool for one maturity."""
 
     n_terminal, n_lower, n_upper = _max_boundary_counts(config)
+    generators = _grid_point_generators(config.grid_sampling)
     rng = np.random.default_rng(root_seed)
     return NestedGridPool(
-        X_int=make_random_price_interior_points(
+        X_int=generators["interior"](
             max_m,
             t_min=0.0,
             t_max=maturity,
@@ -117,21 +123,21 @@ def make_nested_grid_pool(
             maturity=maturity,
             rng=rng,
         ),
-        X_terminal=make_random_price_terminal_boundary(
+        X_terminal=generators["terminal"](
             n_terminal,
             maturity=maturity,
             S_min=config.S_min,
             S_max=config.S_max,
             rng=rng,
         ),
-        X_lower=make_random_price_lower_boundary(
+        X_lower=generators["lower"](
             n_lower,
             t_min=0.0,
             maturity=maturity,
             S_min=config.S_min,
             rng=rng,
         ),
-        X_upper=make_random_price_upper_boundary(
+        X_upper=generators["upper"](
             n_upper,
             t_min=0.0,
             maturity=maturity,
@@ -429,6 +435,27 @@ def _max_boundary_counts(config: ExperimentConfig) -> tuple[int, int, int]:
     return tuple(max(parts) for parts in zip(*counts, strict=True))
 
 
+def _grid_point_generators(grid_sampling: str) -> dict[str, Any]:
+    if grid_sampling == "price_uniform":
+        return {
+            "interior": make_random_price_interior_points,
+            "terminal": make_random_price_terminal_boundary,
+            "lower": make_random_price_lower_boundary,
+            "upper": make_random_price_upper_boundary,
+        }
+    if grid_sampling == "log_price_uniform":
+        return {
+            "interior": make_random_log_price_interior_points,
+            "terminal": make_random_log_price_terminal_boundary,
+            "lower": make_random_log_price_lower_boundary,
+            "upper": make_random_log_price_upper_boundary,
+        }
+    raise ValueError(
+        "grid_sampling must be 'price_uniform' or 'log_price_uniform', "
+        f"got {grid_sampling!r}."
+    )
+
+
 def _collocation_pairs(config: ExperimentConfig) -> list[dict[str, int]]:
     return [{"m": m, "d": m} for m in config.m_values]
 
@@ -553,6 +580,10 @@ def _config_json(config: ExperimentConfig) -> dict[str, Any]:
         "For each maturity, largest train/tune pools are generated once. "
         "Interior, terminal, lower, and upper blocks are sampled sequentially "
         "from one random generator, matching the nested collocation experiment."
+    )
+    data["grid_sampling_note"] = (
+        "'price_uniform' samples uniformly in S and returns x = log(S). "
+        "'log_price_uniform' samples uniformly directly in x = log(S)."
     )
     data["collocation_pairs"] = _collocation_pairs(config)
     data["seed_policy"] = (

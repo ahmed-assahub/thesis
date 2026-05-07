@@ -15,7 +15,9 @@ from experiments.black_scholes_collocation_sensitivity_nested import (
 )
 
 
-def _tiny_config(output_dir: Path) -> ExperimentConfig:
+def _tiny_config(
+    output_dir: Path, grid_sampling: str = "price_uniform"
+) -> ExperimentConfig:
     return ExperimentConfig(
         maturities=(0.5,),
         S_min=20.0,
@@ -27,6 +29,7 @@ def _tiny_config(output_dir: Path) -> ExperimentConfig:
         n_bd_ratios=(0.75, 1.5),
         maxiter=2,
         output_dir=output_dir,
+        grid_sampling=grid_sampling,
     )
 
 
@@ -163,3 +166,26 @@ def test_write_outputs_creates_expected_files(tmp_path: Path) -> None:
 
     assert "ratio_index" not in config_data["seed_policy"]
     assert "For each maturity" in config_data["grid_design_note"]
+    assert config_data["grid_sampling"] == "price_uniform"
+    assert "log_price_uniform" in config_data["grid_sampling_note"]
+
+
+def test_log_price_uniform_grid_pool_uses_log_bounds(tmp_path: Path) -> None:
+    config = _tiny_config(tmp_path, grid_sampling="log_price_uniform")
+    pool = make_nested_grid_pool(
+        config,
+        maturity=0.5,
+        max_n_int=8,
+        max_n_bd=12,
+        seed=1,
+        boundary_counts=(4, 4, 4),
+    )
+
+    grid = trim_nested_grid(config, maturity=0.5, pool=pool, n_int=4, n_bd=6)
+
+    lower = np.log(config.S_min)
+    upper = np.log(config.S_max)
+    assert np.all(grid.X_int[:, 1] >= lower)
+    assert np.all(grid.X_int[:, 1] <= upper)
+    assert np.all(grid.X_bd[:, 1] >= lower)
+    assert np.all(grid.X_bd[:, 1] <= upper)

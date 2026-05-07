@@ -17,7 +17,11 @@ from experiments.black_scholes_collocation_sensitivity_nested import (
 )
 
 
-def _tiny_config(output_dir: Path, m_values: tuple[int, ...] = (8,)) -> ExperimentConfig:
+def _tiny_config(
+    output_dir: Path,
+    m_values: tuple[int, ...] = (8,),
+    grid_sampling: str = "price_uniform",
+) -> ExperimentConfig:
     return ExperimentConfig(
         maturities=(0.5,),
         S_min=20.0,
@@ -28,6 +32,7 @@ def _tiny_config(output_dir: Path, m_values: tuple[int, ...] = (8,)) -> Experime
         m_values=m_values,
         maxiter=2,
         output_dir=output_dir,
+        grid_sampling=grid_sampling,
     )
 
 
@@ -110,6 +115,25 @@ def test_write_outputs_creates_expected_files(tmp_path: Path) -> None:
     assert len(prediction_rows) == 3
     assert prediction_rows[0]["m"] == "8"
     assert prediction_rows[0]["d"] == "8"
+
+
+def test_log_price_uniform_grid_pool_uses_log_bounds(tmp_path: Path) -> None:
+    config = _tiny_config(tmp_path, m_values=(8,), grid_sampling="log_price_uniform")
+
+    pool = make_nested_grid_pool(
+        config,
+        maturity=0.5,
+        max_m=max(config.m_values),
+        root_seed=123,
+    )
+    grid = trim_nested_grid(config, maturity=0.5, pool=pool, m=8)
+
+    lower = np.log(config.S_min)
+    upper = np.log(config.S_max)
+    assert np.all(grid.X_int[:, 1] >= lower)
+    assert np.all(grid.X_int[:, 1] <= upper)
+    assert np.all(grid.X_bd[:, 1] >= lower)
+    assert np.all(grid.X_bd[:, 1] <= upper)
 
 
 def test_grid_matches_collocation_nested_grid_for_ratio_one(

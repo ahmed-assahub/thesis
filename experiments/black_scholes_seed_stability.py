@@ -19,7 +19,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from option_gpr.benchmarks import black_scholes_call_price_log
-from option_gpr.grids import GridSet, make_random_price_grid
+from option_gpr.grids import GridSet, make_random_log_price_grid, make_random_price_grid
 from option_gpr.hyperparams import ResidualTuningResult, tune_rbf_kernel_residual
 from option_gpr.kernels import RBFKernel
 from option_gpr.metrics import mae, max_abs_error, mean_relative_error
@@ -56,7 +56,8 @@ class ExperimentConfig:
     xatol: float = 1e-3
     fatol: float = 1e-3
     global_base_seed: int = 20260520
-    output_dir: Path = Path("results/black_scholes/seed_stability")
+    output_dir: Path = Path("results/black_scholes/seed_stability_log")
+    grid_sampling: str = "log_price_uniform"
     schema_version: str = "1"
     show_progress: bool = True
 
@@ -87,7 +88,8 @@ def make_grid(config: ExperimentConfig, maturity: float, seed: int) -> GridSet:
     """Generate one random training or tuning grid."""
 
     n_terminal, n_lower, n_upper = split_boundary_count(config.n_bd)
-    return make_random_price_grid(
+    grid_factory = _grid_factory(config.grid_sampling)
+    return grid_factory(
         n_int=config.n_int,
         n_terminal=n_terminal,
         n_lower=n_lower,
@@ -396,6 +398,17 @@ def _make_bs_operator(model: BlackScholesModel, kernel: RBFKernel) -> BSLogOpera
     return BSLogOperator(model=model, kernel=kernel)
 
 
+def _grid_factory(grid_sampling: str):
+    if grid_sampling == "price_uniform":
+        return make_random_price_grid
+    if grid_sampling == "log_price_uniform":
+        return make_random_log_price_grid
+    raise ValueError(
+        "grid_sampling must be 'price_uniform' or 'log_price_uniform', "
+        f"got {grid_sampling!r}."
+    )
+
+
 def _format_duration(seconds: float) -> str:
     total_seconds = max(0, int(round(seconds)))
     hours, remainder = divmod(total_seconds, 3600)
@@ -549,6 +562,10 @@ def _config_json(config: ExperimentConfig) -> dict[str, Any]:
         "seed_base = global_base_seed + 10000 * seed_index; "
         "train_seed = seed_base + 100 * maturity_index + 1; "
         "tune_seed = seed_base + 100 * maturity_index + 2"
+    )
+    data["grid_sampling_note"] = (
+        "'price_uniform' samples uniformly in S and returns x = log(S). "
+        "'log_price_uniform' samples uniformly directly in x = log(S)."
     )
     data["execution"] = (
         "Sequential by default. Parallel execution is intentionally omitted to "
