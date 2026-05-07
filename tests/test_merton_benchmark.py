@@ -4,6 +4,7 @@ import pytest
 from option_gpr.benchmarks import (
     black_scholes_call_price_log,
     merton_jump_call_price_log,
+    merton_jump_call_price_mc_log,
 )
 from option_gpr.payoffs import call_payoff_log
 
@@ -158,3 +159,196 @@ def test_merton_jump_call_price_log_rejects_invalid_parameters(
 
     with pytest.raises(ValueError):
         merton_jump_call_price_log(X, **params)
+
+
+def test_merton_jump_call_price_mc_log_shape_and_finite_values() -> None:
+    X = _sample_points()
+
+    prices = merton_jump_call_price_mc_log(X, **_params(), n_paths=1_000, seed=123)
+
+    assert prices.shape == (3,)
+    assert np.all(np.isfinite(prices))
+    assert np.all(prices >= 0.0)
+
+
+def test_merton_jump_call_price_mc_log_returns_standard_errors() -> None:
+    X = _sample_points()
+
+    prices, standard_errors = merton_jump_call_price_mc_log(
+        X,
+        **_params(),
+        n_paths=1_000,
+        seed=123,
+        return_std_error=True,
+    )
+
+    assert prices.shape == (3,)
+    assert standard_errors.shape == (3,)
+    assert np.all(np.isfinite(prices))
+    assert np.all(np.isfinite(standard_errors))
+    assert np.all(standard_errors >= 0.0)
+
+
+def test_merton_jump_call_price_mc_log_same_seed_is_reproducible() -> None:
+    X = _sample_points()
+
+    prices_1, standard_errors_1 = merton_jump_call_price_mc_log(
+        X,
+        **_params(),
+        n_paths=500,
+        seed=123,
+        return_std_error=True,
+    )
+    prices_2, standard_errors_2 = merton_jump_call_price_mc_log(
+        X,
+        **_params(),
+        n_paths=500,
+        seed=123,
+        return_std_error=True,
+    )
+
+    np.testing.assert_array_equal(prices_1, prices_2)
+    np.testing.assert_array_equal(standard_errors_1, standard_errors_2)
+
+
+def test_merton_jump_call_price_mc_log_different_seeds_change_prices() -> None:
+    X = _sample_points()
+
+    prices_1 = merton_jump_call_price_mc_log(X, **_params(), n_paths=500, seed=123)
+    prices_2 = merton_jump_call_price_mc_log(X, **_params(), n_paths=500, seed=456)
+
+    assert not np.array_equal(prices_1, prices_2)
+
+
+def test_merton_jump_call_price_mc_log_matches_payoff_at_maturity() -> None:
+    params = _params()
+    X = np.array(
+        [
+            [params["maturity"], np.log(80.0)],
+            [params["maturity"], np.log(100.0)],
+            [params["maturity"], np.log(120.0)],
+        ]
+    )
+
+    prices, standard_errors = merton_jump_call_price_mc_log(
+        X,
+        **params,
+        n_paths=10,
+        seed=123,
+        return_std_error=True,
+    )
+
+    np.testing.assert_allclose(prices, call_payoff_log(X[:, 1], params["strike"]))
+    np.testing.assert_allclose(standard_errors, np.zeros(3))
+
+
+def test_merton_jump_call_price_mc_log_no_jumps_matches_black_scholes_loosely() -> None:
+    X = np.array([[0.0, np.log(100.0)]])
+    params = _params()
+    params["jump_intensity"] = 0.0
+
+    mc_price, standard_error = merton_jump_call_price_mc_log(
+        X,
+        **params,
+        n_paths=20_000,
+        seed=123,
+        return_std_error=True,
+    )
+    bs_price = black_scholes_call_price_log(
+        X,
+        strike=params["strike"],
+        maturity=params["maturity"],
+        r=params["r"],
+        sigma=params["sigma"],
+    )
+
+    assert abs(mc_price[0] - bs_price[0]) < 4.0 * standard_error[0] + 0.1
+
+
+def test_merton_jump_call_price_mc_log_matches_series_loosely() -> None:
+    X = np.array([[0.0, np.log(100.0)]])
+    params = _params()
+
+    mc_price, standard_error = merton_jump_call_price_mc_log(
+        X,
+        **params,
+        n_paths=30_000,
+        seed=123,
+        return_std_error=True,
+    )
+    series_price = merton_jump_call_price_log(X, **params)
+
+    assert abs(mc_price[0] - series_price[0]) < 4.0 * standard_error[0] + 0.1
+
+
+def test_merton_jump_call_price_mc_log_allows_zero_jump_std() -> None:
+    X = _sample_points()
+    params = _params()
+    params["jump_std"] = 0.0
+
+    prices = merton_jump_call_price_mc_log(X, **params, n_paths=1_000, seed=123)
+
+    assert prices.shape == (3,)
+    assert np.all(np.isfinite(prices))
+    assert np.all(prices >= 0.0)
+
+
+@pytest.mark.parametrize(
+    "bad_X",
+    [
+        np.array([0.0, np.log(100.0)]),
+        np.array([[0.0]]),
+        np.array([[0.0, np.log(100.0), 1.0]]),
+        np.array([[np.nan, np.log(100.0)]]),
+    ],
+)
+def test_merton_jump_call_price_mc_log_rejects_invalid_shape_or_values(
+    bad_X: np.ndarray,
+) -> None:
+    with pytest.raises(ValueError):
+        merton_jump_call_price_mc_log(bad_X, **_params(), n_paths=10, seed=123)
+
+
+def test_merton_jump_call_price_mc_log_rejects_times_after_maturity() -> None:
+    X = np.array([[1.01, np.log(100.0)]])
+
+    with pytest.raises(ValueError):
+        merton_jump_call_price_mc_log(X, **_params(), n_paths=10, seed=123)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"strike": 0.0},
+        {"maturity": 0.0},
+        {"r": np.inf},
+        {"sigma": 0.0},
+        {"jump_intensity": -0.1},
+        {"jump_mean": np.inf},
+        {"jump_std": -0.1},
+        {"n_paths": 0},
+    ],
+)
+def test_merton_jump_call_price_mc_log_rejects_invalid_parameters(
+    kwargs: dict[str, float],
+) -> None:
+    X = np.array([[0.0, np.log(100.0)]])
+    params = _params()
+    params["n_paths"] = 10
+    params.update(kwargs)
+
+    with pytest.raises(ValueError):
+        merton_jump_call_price_mc_log(X, **params, seed=123)
+
+
+def test_merton_jump_call_price_mc_log_rejects_one_path_with_standard_error() -> None:
+    X = np.array([[0.0, np.log(100.0)]])
+
+    with pytest.raises(ValueError):
+        merton_jump_call_price_mc_log(
+            X,
+            **_params(),
+            n_paths=1,
+            seed=123,
+            return_std_error=True,
+        )
