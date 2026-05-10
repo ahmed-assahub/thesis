@@ -59,8 +59,8 @@ class ExperimentConfig:
     validation_S_min: float = 50.0
     validation_S_max: float = 200.0
     validation_S_step: float = 2
-    m_values: tuple[int, ...] = (400, 600, 800)
-    mc_path_values: tuple[int, ...] = (500,)
+    m_values: tuple[int, ...] = (400, 600, 800, 1000)
+    mc_path_values: tuple[int, ...] = (500_000, 1_000_000, 2_000_000)
     initial_sigma_f: float = 100.0
     fixed_sigma_f: float | None = 1.0
     initial_ell_t: float = 0.8
@@ -68,13 +68,13 @@ class ExperimentConfig:
     noise_int: float = 1e-2
     noise_bd: float = 1e-2
     jitter: float = 0.0
-    maxiter: int = 300
-    xatol: float = 1e-3
-    fatol: float = 1e-3
+    maxiter: int = 150
+    xatol: float = 1e-2
+    fatol: float = 1e-2
     tail_tol: float = 1e-12
     max_terms: int = 600
-    base_seed: int = 20260605
-    output_dir: Path = Path("results/merton_jump_diffusion/grid_mc_comparisonlog")
+    base_seed: int = 20290701
+    output_dir: Path = Path("results/merton_jump_diffusion/grid_mc_comparison")
     grid_sampling: str = "log_price_uniform"
     schema_version: str = "1"
 

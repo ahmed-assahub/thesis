@@ -47,14 +47,14 @@ class ExperimentConfig:
     jump_intensity: float = 1.0
     jump_mean: float = -0.1
     jump_std: float = 0.2
-    maturities: tuple[float, ...] = (0.5, 1.0, 1.5, 2.0, 2.5, 3.0)
+    maturities: tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
     S_min: float = 1.0
     S_max: float = 350.0
     validation_S_min: float = 50.0
     validation_S_max: float = 200.0
     validation_S_step: float = 2.0
-    n_int: int = 1700
-    n_bd: int = 1700
+    n_int: int = 1000
+    n_bd: int = 1000
     mc_path_values: tuple[int, ...] = (5000, )
     initial_sigma_f: float = 100.0
     fixed_sigma_f: float | None = 1.0
@@ -68,7 +68,7 @@ class ExperimentConfig:
     fatol: float = 1e-3
     tail_tol: float = 1e-12
     max_terms: int = 200
-    base_seed: int = 20260615
+    base_seed: int = 20290701
     output_dir: Path = Path("results/merton_jump_diffusion/single_surface_mc_comparison")
     grid_sampling: str = "price_uniform"
     schema_version: str = "1"

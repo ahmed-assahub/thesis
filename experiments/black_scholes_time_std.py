@@ -62,8 +62,8 @@ class ExperimentConfig:
     noise_bd: float = 1e-2
     jitter: float = 0.0
     maxiter: int = 300
-    xatol: float = 1e-3
-    fatol: float = 1e-3
+    xatol: float = 1e-2
+    fatol: float = 1e-2
     base_seed: int = 20260511
     output_dir: Path = Path("results/black_scholes/time_std")
     grid_sampling: str = "price_uniform"

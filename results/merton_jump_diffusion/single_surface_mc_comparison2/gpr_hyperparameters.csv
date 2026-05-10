@@ -1,0 +1,2 @@
+T_max,n_int,n_bd,sigma_f,ell_t,ell_x,log_sigma_f,log_ell_t,log_ell_x,initial_sigma_f,fixed_sigma_f,initial_ell_t,initial_ell_x,objective_value,success,nit,nfev
+2.0,1700,1700,1.0,0.5653625824486795,0.13536549091107736,,-0.5702880148147966,-1.9997768187055602,100.0,1.0,0.8,1.2,0.014041647546256964,True,90,168
