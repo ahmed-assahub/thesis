@@ -88,6 +88,51 @@ class StackedOperatorGP:
             ]
         )
 
+    def build_d_t_K_star_A(
+        self, X_star: ArrayLike, X_int: ArrayLike, X_bd: ArrayLike
+    ) -> NDArray[np.float64]:
+        """Return ``d/dt`` of the posterior beta block at ``X_star``."""
+
+        X_star_arr = self.kernel._validate_points(X_star, "X_star")
+        X_int_arr = self.kernel._validate_points(X_int, "X_int")
+        X_bd_arr = self.kernel._validate_points(X_bd, "X_bd")
+        return np.hstack(
+            [
+                self.operator.d_t_kLp(X_star_arr, X_int_arr),
+                self.kernel.d_t_K(X_star_arr, X_bd_arr),
+            ]
+        )
+
+    def build_d_x_K_star_A(
+        self, X_star: ArrayLike, X_int: ArrayLike, X_bd: ArrayLike
+    ) -> NDArray[np.float64]:
+        """Return ``d/dx`` of the posterior beta block at ``X_star``."""
+
+        X_star_arr = self.kernel._validate_points(X_star, "X_star")
+        X_int_arr = self.kernel._validate_points(X_int, "X_int")
+        X_bd_arr = self.kernel._validate_points(X_bd, "X_bd")
+        return np.hstack(
+            [
+                self.operator.d_x_kLp(X_star_arr, X_int_arr),
+                self.kernel.d_x_K(X_star_arr, X_bd_arr),
+            ]
+        )
+
+    def build_d_xx_K_star_A(
+        self, X_star: ArrayLike, X_int: ArrayLike, X_bd: ArrayLike
+    ) -> NDArray[np.float64]:
+        """Return ``d2/dx2`` of the posterior beta block at ``X_star``."""
+
+        X_star_arr = self.kernel._validate_points(X_star, "X_star")
+        X_int_arr = self.kernel._validate_points(X_int, "X_int")
+        X_bd_arr = self.kernel._validate_points(X_bd, "X_bd")
+        return np.hstack(
+            [
+                self.operator.d_xx_kLp(X_star_arr, X_int_arr),
+                self.kernel.d_xx_K(X_star_arr, X_bd_arr),
+            ]
+        )
+
     def build_noise_diag(self, n_int: int, n_bd: int) -> NDArray[np.float64]:
         """Return the diagonal of the stacked observation noise matrix."""
 
@@ -170,6 +215,42 @@ class StackedOperatorGP:
         X_star_arr = self.kernel._validate_points(X_star, "X_star")
         L_star_A = self.build_L_star_A(X_star_arr, self.X_int, self.X_bd)
         return L_star_A @ self.alpha
+
+    def predict_derivatives(
+        self, X_star: ArrayLike
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+        """Return analytical derivatives of the posterior mean.
+
+        Derivatives are with respect to the log-price coordinate system:
+        ``dm_dt``, ``dm_dx``, and ``d2m_dx2`` for rows ``(t, x)`` in ``X_star``.
+        """
+
+        if self.X_int is None or self.X_bd is None or self.alpha is None:
+            raise RuntimeError("fit must be called before predict_derivatives.")
+
+        X_star_arr = self.kernel._validate_points(X_star, "X_star")
+        d_t_beta = self.build_d_t_K_star_A(X_star_arr, self.X_int, self.X_bd)
+        d_x_beta = self.build_d_x_K_star_A(X_star_arr, self.X_int, self.X_bd)
+        d_xx_beta = self.build_d_xx_K_star_A(X_star_arr, self.X_int, self.X_bd)
+        return d_t_beta @ self.alpha, d_x_beta @ self.alpha, d_xx_beta @ self.alpha
+
+    def predict_greeks(
+        self, X_star: ArrayLike
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+        """Return ``Delta``, ``Gamma``, and ``Theta`` from posterior derivatives.
+
+        ``Delta`` and ``Gamma`` are transformed from log-price derivatives to
+        price-coordinate Greeks using ``S = exp(x)``. ``Theta`` is the partial
+        derivative with respect to the fixed-maturity time coordinate ``t``.
+        """
+
+        X_star_arr = self.kernel._validate_points(X_star, "X_star")
+        dm_dt, dm_dx, d2m_dx2 = self.predict_derivatives(X_star_arr)
+        S = np.exp(X_star_arr[:, 1])
+        delta = dm_dx / S
+        gamma = (d2m_dx2 - dm_dx) / S**2
+        theta = dm_dt
+        return delta, gamma, theta
 
 
 def _validate_nonnegative(name: str, value: float) -> None:

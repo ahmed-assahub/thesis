@@ -50,7 +50,7 @@ class ExperimentConfig:
     r: float = 0.05
     sigma: float = 0.25
     strike: float = 100.0
-    jump_intensity: float = 1.0
+    jump_intensity: float = 2
     jump_mean: float = -0.1
     jump_std: float = 0.2
     maturities: tuple[float, ...] = (0.5, 1.0, 1.5, 2.0, 2.5, 3.0)
@@ -59,8 +59,8 @@ class ExperimentConfig:
     validation_S_min: float = 50.0
     validation_S_max: float = 200.0
     validation_S_step: float = 2
-    m_values: tuple[int, ...] = (400, 600, 800, 1000)
-    mc_path_values: tuple[int, ...] = (500_000, 1_000_000, 2_000_000)
+    m_values: tuple[int, ...] = (1000,)
+    mc_path_values: tuple[int, ...] = (1000,)
     initial_sigma_f: float = 100.0
     fixed_sigma_f: float | None = 1.0
     initial_ell_t: float = 0.8
@@ -74,7 +74,7 @@ class ExperimentConfig:
     tail_tol: float = 1e-12
     max_terms: int = 600
     base_seed: int = 20290701
-    output_dir: Path = Path("results/merton_jump_diffusion/grid_mc_comparison")
+    output_dir: Path = Path("results/merton_jump_diffusion/lambda2")
     grid_sampling: str = "log_price_uniform"
     schema_version: str = "1"
 

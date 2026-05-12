@@ -50,6 +50,25 @@ class RBFKernel:
         )
         return self.sigma_f**2 * np.exp(exponent)
 
+    def d_t_K(self, X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
+        """Return ``d/dt k((t, x), (s, xi))`` with respect to the first argument."""
+
+        tau = self.tau(X, Y)
+        return -(tau / self.ell_t**2) * self.K(X, Y)
+
+    def d_x_K(self, X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
+        """Return ``d/dx k((t, x), (s, xi))`` with respect to the first argument."""
+
+        chi = self.chi(X, Y)
+        return -(chi / self.ell_x**2) * self.K(X, Y)
+
+    def d_xx_K(self, X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
+        """Return ``d2/dx2 k((t, x), (s, xi))`` for log-price ``x``."""
+
+        chi = self.chi(X, Y)
+        multiplier = chi**2 / self.ell_x**4 - 1.0 / self.ell_x**2
+        return multiplier * self.K(X, Y)
+
     @staticmethod
     def _validate_pair(
         X: ArrayLike, Y: ArrayLike

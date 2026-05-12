@@ -67,6 +67,16 @@ def test_build_L_star_A_shape() -> None:
     assert L_star_A.shape == (4, 5)
 
 
+def test_build_derivative_star_A_shapes() -> None:
+    gp = _make_gp()
+    X_int, X_bd, _ = _sample_data()
+    X_star = np.array([[0.1, 3.95], [0.6, 4.2], [0.9, 4.4], [1.0, 4.0]])
+
+    assert gp.build_d_t_K_star_A(X_star, X_int, X_bd).shape == (4, 5)
+    assert gp.build_d_x_K_star_A(X_star, X_int, X_bd).shape == (4, 5)
+    assert gp.build_d_xx_K_star_A(X_star, X_int, X_bd).shape == (4, 5)
+
+
 def test_build_noise_diag_uses_separate_squared_noise_levels() -> None:
     gp = _make_gp(noise_int=0.1, noise_bd=0.2)
 
@@ -105,6 +115,17 @@ def test_predict_operator_before_fit_raises_runtime_error() -> None:
 
     with pytest.raises(RuntimeError):
         gp.predict_operator(X_star)
+
+
+def test_predict_derivatives_and_greeks_before_fit_raise_runtime_error() -> None:
+    gp = _make_gp()
+    X_star = np.array([[0.5, 4.0]])
+
+    with pytest.raises(RuntimeError):
+        gp.predict_derivatives(X_star)
+
+    with pytest.raises(RuntimeError):
+        gp.predict_greeks(X_star)
 
 
 def test_predict_returns_posterior_mean_shape() -> None:
@@ -169,6 +190,51 @@ def test_predict_operator_returns_finite_shape_and_matches_manual_blocks() -> No
     np.testing.assert_allclose(operator_mean, L_star_A @ gp.alpha)
 
 
+def test_predict_derivatives_match_finite_differences_of_mean() -> None:
+    gp = _make_gp(noise_int=1e-3, noise_bd=1e-3)
+    X_int, X_bd, y_bd = _sample_data()
+    X_star = np.array([[0.2, 3.95], [0.6, 4.15]])
+
+    gp.fit(X_int, X_bd, y_bd)
+    dm_dt, dm_dx, d2m_dx2 = gp.predict_derivatives(X_star)
+
+    np.testing.assert_allclose(
+        dm_dt,
+        _central_difference(lambda Z: gp.predict(Z), X_star, axis=0, step=1e-6),
+        rtol=1e-5,
+        atol=1e-7,
+    )
+    np.testing.assert_allclose(
+        dm_dx,
+        _central_difference(lambda Z: gp.predict(Z), X_star, axis=1, step=1e-6),
+        rtol=1e-5,
+        atol=1e-7,
+    )
+    np.testing.assert_allclose(
+        d2m_dx2,
+        _second_central_difference(
+            lambda Z: gp.predict(Z), X_star, axis=1, step=1e-4
+        ),
+        rtol=5e-4,
+        atol=1e-5,
+    )
+
+
+def test_predict_greeks_apply_log_price_transformations() -> None:
+    gp = _make_gp(noise_int=1e-3, noise_bd=1e-3)
+    X_int, X_bd, y_bd = _sample_data()
+    X_star = np.array([[0.2, 3.95], [0.6, 4.15]])
+
+    gp.fit(X_int, X_bd, y_bd)
+    dm_dt, dm_dx, d2m_dx2 = gp.predict_derivatives(X_star)
+    delta, gamma, theta = gp.predict_greeks(X_star)
+    S = np.exp(X_star[:, 1])
+
+    np.testing.assert_allclose(delta, dm_dx / S)
+    np.testing.assert_allclose(gamma, (d2m_dx2 - dm_dx) / S**2)
+    np.testing.assert_allclose(theta, dm_dt)
+
+
 def test_fit_rejects_boundary_value_length_mismatch() -> None:
     gp = _make_gp()
     X_int, X_bd, _ = _sample_data()
@@ -204,3 +270,21 @@ def test_stacked_gp_rejects_invalid_regularization_parameters(
 
     with pytest.raises(ValueError):
         StackedOperatorGP(**params)
+
+
+def _central_difference(fn: object, X: np.ndarray, *, axis: int, step: float) -> np.ndarray:
+    X_plus = X.copy()
+    X_minus = X.copy()
+    X_plus[:, axis] += step
+    X_minus[:, axis] -= step
+    return (fn(X_plus) - fn(X_minus)) / (2.0 * step)
+
+
+def _second_central_difference(
+    fn: object, X: np.ndarray, *, axis: int, step: float
+) -> np.ndarray:
+    X_plus = X.copy()
+    X_minus = X.copy()
+    X_plus[:, axis] += step
+    X_minus[:, axis] -= step
+    return (fn(X_plus) - 2.0 * fn(X) + fn(X_minus)) / step**2

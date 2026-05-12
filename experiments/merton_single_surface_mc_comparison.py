@@ -47,7 +47,7 @@ class ExperimentConfig:
     jump_intensity: float = 1.0
     jump_mean: float = -0.1
     jump_std: float = 0.2
-    maturities: tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
+    maturities: tuple[float, ...] = (0.5, 1.0, 1.5, 2.0, 2.5, 3.0)
     S_min: float = 1.0
     S_max: float = 350.0
     validation_S_min: float = 50.0
@@ -64,13 +64,13 @@ class ExperimentConfig:
     noise_bd: float = 1e-2
     jitter: float = 0.0
     maxiter: int = 300
-    xatol: float = 1e-3
-    fatol: float = 1e-3
+    xatol: float = 1e-2
+    fatol: float = 1e-2
     tail_tol: float = 1e-12
     max_terms: int = 200
-    base_seed: int = 20290701
+    base_seed: int = 20291201
     output_dir: Path = Path("results/merton_jump_diffusion/single_surface_mc_comparison")
-    grid_sampling: str = "price_uniform"
+    grid_sampling: str = "log_price_uniform"
     schema_version: str = "1"
 
 
@@ -804,7 +804,9 @@ def _config_json(config: ExperimentConfig) -> dict[str, Any]:
         "'log_price_uniform' samples uniformly directly in x = log(S)."
     )
     data["gpr_seed_policy"] = (
-        "train_seed = base_seed + 1; tune_seed = base_seed + 2"
+        "train_seed = base_seed + 501; tune_seed = base_seed + 502. "
+        "These match maturity_index=5 seeds in the maturity-wise grid experiment "
+        "when T_max=3.0."
     )
     data["mc_seed_policy"] = (
         "mc_seed = base_seed + 10000 + 100 * path_index + maturity_index"

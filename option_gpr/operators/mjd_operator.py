@@ -36,6 +36,57 @@ class MJDOperator:
         jump_intensity = self.model.jump_intensity
         return self._Q(X, Y) * self.kernel.K(X, Y) + jump_intensity * self._Jyk(X, Y)
 
+    def d_t_kLp(self, X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
+        """Return ``d/dt [L_y k((t, x), y)]`` for the first kernel argument."""
+
+        tau = self.kernel.tau(X, Y)
+        ell_t = self.kernel.ell_t
+        C = self._Q(X, Y)
+        k = self.kernel.K(X, Y)
+        D = self.model.jump_intensity * self._Jyk(X, Y)
+        return (1.0 / ell_t**2 - (tau / ell_t**2) * C) * k - (
+            tau / ell_t**2
+        ) * D
+
+    def d_x_kLp(self, X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
+        """Return ``d/dx [L_y k((t, x), y)]`` for log-price ``x``."""
+
+        coeffs = self.model.coefficients()
+        chi = self.kernel.chi(X, Y)
+        v = self.kernel.ell_x**2
+        w = self._jump_variance_sum()
+        q = chi - self.model.jump_mean
+        C = self._Q(X, Y)
+        k = self.kernel.K(X, Y)
+        D = self.model.jump_intensity * self._Jyk(X, Y)
+        differential_part = (
+            coeffs.b / v
+            + 2.0 * coeffs.c * chi / v**2
+            - (chi / v) * C
+        ) * k
+        jump_part = -(q / w) * D
+        return differential_part + jump_part
+
+    def d_xx_kLp(self, X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
+        """Return ``d2/dx2 [L_y k((t, x), y)]`` for log-price ``x``."""
+
+        coeffs = self.model.coefficients()
+        chi = self.kernel.chi(X, Y)
+        v = self.kernel.ell_x**2
+        w = self._jump_variance_sum()
+        q = chi - self.model.jump_mean
+        C = self._Q(X, Y)
+        k = self.kernel.K(X, Y)
+        D = self.model.jump_intensity * self._Jyk(X, Y)
+        differential_multiplier = (
+            2.0 * coeffs.c / v**2
+            - 2.0 * coeffs.b * chi / v**2
+            - 4.0 * coeffs.c * chi**2 / v**3
+            + C * (chi**2 / v**2 - 1.0 / v)
+        )
+        jump_multiplier = q**2 / w**2 - 1.0 / w
+        return differential_multiplier * k + jump_multiplier * D
+
     def LkLp(self, X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
         """Return ``L_z L_y k(z, y)`` for rows ``z`` in ``X`` and ``y`` in ``Y``."""
 

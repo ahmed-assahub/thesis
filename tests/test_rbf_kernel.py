@@ -49,6 +49,31 @@ def test_rbf_kernel_pairwise_helpers() -> None:
     np.testing.assert_allclose(kernel.chi(X, Y), expected_chi)
 
 
+def test_rbf_kernel_first_argument_derivatives_match_finite_differences() -> None:
+    kernel = RBFKernel(ell_t=0.8, ell_x=1.1, sigma_f=1.4)
+    X = np.array([[0.15, 3.9], [0.65, 4.2]])
+    Y = np.array([[0.25, 3.8], [0.75, 4.1], [0.9, 4.4]])
+
+    np.testing.assert_allclose(
+        kernel.d_t_K(X, Y),
+        _central_difference(lambda Z: kernel.K(Z, Y), X, axis=0, step=1e-6),
+        rtol=1e-5,
+        atol=1e-7,
+    )
+    np.testing.assert_allclose(
+        kernel.d_x_K(X, Y),
+        _central_difference(lambda Z: kernel.K(Z, Y), X, axis=1, step=1e-6),
+        rtol=1e-5,
+        atol=1e-7,
+    )
+    np.testing.assert_allclose(
+        kernel.d_xx_K(X, Y),
+        _second_central_difference(lambda Z: kernel.K(Z, Y), X, axis=1, step=1e-4),
+        rtol=1e-5,
+        atol=1e-7,
+    )
+
+
 @pytest.mark.parametrize(
     ("ell_t", "ell_x", "sigma_f"),
     [
@@ -90,3 +115,23 @@ def test_rbf_kernel_rejects_invalid_point_shapes(bad_points: np.ndarray) -> None
 
     with pytest.raises(ValueError):
         kernel.K(good_points, bad_points)
+
+
+def _central_difference(
+    fn: object, X: np.ndarray, *, axis: int, step: float
+) -> np.ndarray:
+    X_plus = X.copy()
+    X_minus = X.copy()
+    X_plus[:, axis] += step
+    X_minus[:, axis] -= step
+    return (fn(X_plus) - fn(X_minus)) / (2.0 * step)
+
+
+def _second_central_difference(
+    fn: object, X: np.ndarray, *, axis: int, step: float
+) -> np.ndarray:
+    X_plus = X.copy()
+    X_minus = X.copy()
+    X_plus[:, axis] += step
+    X_minus[:, axis] -= step
+    return (fn(X_plus) - 2.0 * fn(X) + fn(X_minus)) / step**2
