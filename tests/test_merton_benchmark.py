@@ -2,9 +2,14 @@ import numpy as np
 import pytest
 
 from option_gpr.benchmarks import (
+    black_scholes_call_greeks_log,
+    merton_jump_call_delta,
+    merton_jump_call_gamma,
+    merton_jump_call_greeks_log,
     black_scholes_call_price_log,
     merton_jump_call_price_log,
     merton_jump_call_price_mc_log,
+    merton_jump_call_theta,
 )
 from option_gpr.payoffs import call_payoff_log
 
@@ -85,6 +90,95 @@ def test_merton_jump_call_price_log_allows_zero_jump_std() -> None:
     assert np.all(prices >= 0.0)
 
 
+def test_merton_jump_call_greeks_log_reduces_to_black_scholes_when_intensity_zero() -> None:
+    X = _sample_points()
+    params = _params()
+    params["jump_intensity"] = 0.0
+
+    merton_delta, merton_gamma, merton_theta = merton_jump_call_greeks_log(X, **params)
+    bs_delta, bs_gamma, bs_theta = black_scholes_call_greeks_log(
+        X,
+        strike=params["strike"],
+        maturity=params["maturity"],
+        r=params["r"],
+        sigma=params["sigma"],
+    )
+
+    np.testing.assert_allclose(merton_delta, bs_delta, rtol=1e-10, atol=1e-12)
+    np.testing.assert_allclose(merton_gamma, bs_gamma, rtol=1e-10, atol=1e-12)
+    np.testing.assert_allclose(merton_theta, bs_theta, rtol=1e-10, atol=1e-12)
+
+
+def test_merton_jump_call_greeks_log_shape_and_finite_values() -> None:
+    X = _sample_points()
+
+    delta, gamma, theta = merton_jump_call_greeks_log(X, **_params())
+
+    assert delta.shape == (3,)
+    assert gamma.shape == (3,)
+    assert theta.shape == (3,)
+    assert np.all(np.isfinite(delta))
+    assert np.all(np.isfinite(gamma))
+    assert np.all(np.isfinite(theta))
+
+
+def test_merton_jump_call_delta_matches_price_finite_difference() -> None:
+    params = _params()
+    t = np.array([0.05, 0.25, 0.5])
+    S = np.array([85.0, 100.0, 120.0])
+    step = 1e-3
+
+    delta = merton_jump_call_delta(t, S, **params)
+    price_plus = _merton_price_from_t_and_S(t, S + step, params)
+    price_minus = _merton_price_from_t_and_S(t, S - step, params)
+    finite_difference = (price_plus - price_minus) / (2.0 * step)
+
+    np.testing.assert_allclose(delta, finite_difference, rtol=1e-5, atol=1e-7)
+
+
+def test_merton_jump_call_gamma_matches_delta_finite_difference() -> None:
+    params = _params()
+    t = np.array([0.05, 0.25, 0.5])
+    S = np.array([85.0, 100.0, 120.0])
+    step = 1e-3
+
+    gamma = merton_jump_call_gamma(t, S, **params)
+    delta_plus = merton_jump_call_delta(t, S + step, **params)
+    delta_minus = merton_jump_call_delta(t, S - step, **params)
+    finite_difference = (delta_plus - delta_minus) / (2.0 * step)
+
+    np.testing.assert_allclose(gamma, finite_difference, rtol=1e-4, atol=1e-6)
+
+
+def test_merton_jump_call_theta_matches_calendar_time_finite_difference() -> None:
+    params = _params()
+    t = np.array([0.05, 0.25, 0.5])
+    S = np.array([85.0, 100.0, 120.0])
+    step = 1e-5
+
+    theta = merton_jump_call_theta(t, S, **params)
+    price_plus = _merton_price_from_t_and_S(t + step, S, params)
+    price_minus = _merton_price_from_t_and_S(t - step, S, params)
+    finite_difference = (price_plus - price_minus) / (2.0 * step)
+
+    np.testing.assert_allclose(theta, finite_difference, rtol=1e-4, atol=1e-6)
+
+
+def test_merton_jump_call_greeks_log_allows_zero_jump_std() -> None:
+    X = _sample_points()
+    params = _params()
+    params["jump_std"] = 0.0
+
+    delta, gamma, theta = merton_jump_call_greeks_log(X, **params)
+
+    assert delta.shape == (3,)
+    assert gamma.shape == (3,)
+    assert theta.shape == (3,)
+    assert np.all(np.isfinite(delta))
+    assert np.all(np.isfinite(gamma))
+    assert np.all(np.isfinite(theta))
+
+
 def test_merton_jump_call_price_log_is_nondecreasing_in_spot() -> None:
     params = _params()
     S = np.array([70.0, 90.0, 110.0, 130.0])
@@ -159,6 +253,98 @@ def test_merton_jump_call_price_log_rejects_invalid_parameters(
 
     with pytest.raises(ValueError):
         merton_jump_call_price_log(X, **params)
+
+
+@pytest.mark.parametrize(
+    "bad_X",
+    [
+        np.array([0.0, np.log(100.0)]),
+        np.array([[0.0]]),
+        np.array([[0.0, np.log(100.0), 1.0]]),
+        np.array([[np.nan, np.log(100.0)]]),
+    ],
+)
+def test_merton_jump_call_greeks_log_rejects_invalid_shape_or_values(
+    bad_X: np.ndarray,
+) -> None:
+    with pytest.raises(ValueError):
+        merton_jump_call_greeks_log(bad_X, **_params())
+
+
+@pytest.mark.parametrize(
+    "X",
+    [
+        np.array([[1.0, np.log(100.0)]]),
+        np.array([[1.01, np.log(100.0)]]),
+    ],
+)
+def test_merton_jump_call_greeks_log_rejects_times_at_or_after_maturity(
+    X: np.ndarray,
+) -> None:
+    with pytest.raises(ValueError):
+        merton_jump_call_greeks_log(X, **_params())
+
+
+@pytest.mark.parametrize(
+    "helper",
+    [
+        merton_jump_call_delta,
+        merton_jump_call_gamma,
+        merton_jump_call_theta,
+    ],
+)
+def test_merton_jump_call_greek_helpers_reject_nonpositive_spot(
+    helper: object,
+) -> None:
+    with pytest.raises(ValueError):
+        helper(0.0, 0.0, **_params())
+
+
+@pytest.mark.parametrize(
+    "helper",
+    [
+        merton_jump_call_delta,
+        merton_jump_call_gamma,
+        merton_jump_call_theta,
+    ],
+)
+def test_merton_jump_call_greek_helpers_reject_times_at_or_after_maturity(
+    helper: object,
+) -> None:
+    with pytest.raises(ValueError):
+        helper(1.0, 100.0, **_params())
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"strike": 0.0},
+        {"maturity": 0.0},
+        {"r": np.inf},
+        {"sigma": 0.0},
+        {"jump_intensity": -0.1},
+        {"jump_mean": np.inf},
+        {"jump_std": -0.1},
+        {"tail_tol": 0.0},
+        {"max_terms": 0},
+    ],
+)
+def test_merton_jump_call_greeks_log_rejects_invalid_parameters(
+    kwargs: dict[str, float],
+) -> None:
+    X = np.array([[0.0, np.log(100.0)]])
+    params = _params()
+    params.update(kwargs)
+
+    with pytest.raises(ValueError):
+        merton_jump_call_greeks_log(X, **params)
+
+
+def test_merton_jump_call_greeks_log_raises_when_max_terms_too_small() -> None:
+    X = np.array([[0.0, np.log(100.0)]])
+
+    with pytest.raises(RuntimeError):
+        merton_jump_call_greeks_log(X, **_params(), max_terms=1)
 
 
 def test_merton_jump_call_price_mc_log_shape_and_finite_values() -> None:
@@ -352,3 +538,10 @@ def test_merton_jump_call_price_mc_log_rejects_one_path_with_standard_error() ->
             seed=123,
             return_std_error=True,
         )
+
+
+def _merton_price_from_t_and_S(
+    t: np.ndarray, S: np.ndarray, params: dict[str, float]
+) -> np.ndarray:
+    X = np.column_stack([t, np.log(S)])
+    return merton_jump_call_price_log(X, **params)
