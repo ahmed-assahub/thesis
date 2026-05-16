@@ -59,8 +59,8 @@ class ExperimentConfig:
     validation_S_min: float = 50.0
     validation_S_max: float = 200.0
     validation_S_step: float = 2.0
-    n_int: int = 1000
-    n_bd: int = 1000
+    n_int: int = 3000
+    n_bd: int = 3000
     initial_sigma_f: float = 100.0
     fixed_sigma_f: float | None = 1.0
     initial_ell_t: float = 0.8
